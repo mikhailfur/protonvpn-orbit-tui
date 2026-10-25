@@ -2209,6 +2209,34 @@ def status_bits(app: "OrbitApp") -> tuple[str, str]:
     return "disconnected", "○ DISCONNECTED"
 
 
+def signin_outcome(
+    returncode: int,
+    signed_in: Optional[bool],
+    was_signed_in: bool,
+    previous_account: str,
+    account_name: str,
+) -> tuple[bool, str]:
+    """Translate a finished interactive sign-in into a UI result.
+
+    The CLI exit code and the freshly refreshed account state are both
+    considered so a failed attempt never reports success just because an
+    older session was still present.
+    """
+    if returncode == 0 and signed_in:
+        return True, "Signed in. Welcome back."
+    if returncode != 0:
+        if signed_in and was_signed_in and account_name == previous_account:
+            return (
+                False,
+                f"Sign-in failed (CLI exit code {returncode}); existing session unchanged.",
+            )
+        return (
+            False,
+            f"Sign-in failed (CLI exit code {returncode}). Check the CLI output above.",
+        )
+    return False, "Sign-in did not complete. Check the CLI output above and try again."
+
+
 # ===========================================================================
 # Small custom controls
 # ===========================================================================
@@ -4204,6 +4232,8 @@ class MainScreen(Screen):
         cmd = [CLI_BIN, "signin", username]
         if totp:
             cmd.append("--totp")
+        was_signed_in = bool(app.signed_in)
+        previous_account = app.account_name
         app.busy = True
         app.busy_message = "Signing in through protonvpn CLI…"
         self.refresh_all()
@@ -4216,14 +4246,28 @@ class MainScreen(Screen):
                 result.returncode == 0,
                 f"interactive sign-in exited with code {result.returncode}",
             )
-            await app.refresh_account()
-            await app.refresh_status(record=False)
-            if app.signed_in:
-                self.set_status("Signed in. Welcome back.", "ok")
+            # Keep the operation marked busy so no other CLI action can start,
+            # but force these refreshes past the busy guard: the interactive
+            # command has already finished and its result must be reflected.
+            await app.refresh_account(force=True)
+            await app.refresh_status(record=False, force=True)
+            success, message = signin_outcome(
+                result.returncode,
+                app.signed_in,
+                was_signed_in,
+                previous_account,
+                app.account_name,
+            )
+            self.set_status(message, "ok" if success else "error")
+            if success:
                 self.notify("Signed in successfully.", timeout=3)
-                await app.load_countries_from_cli()
-            else:
-                self.set_status("Sign-in did not complete.", "error")
+                try:
+                    await app.load_countries_from_cli()
+                except Exception as exc:
+                    # The account is already authenticated; a catalogue
+                    # refresh failure must not turn the sign-in into a
+                    # misleading failure message.
+                    app.record_error("post-sign-in countries", exc, quiet=True)
         except Exception as exc:
             self.set_status(f"Sign-in failed: {exc}", "error")
             app.record_error("signin", exc)
@@ -5665,8 +5709,8 @@ class OrbitApp(App[None]):
 
     # ---------------------------------------------------------- account/status
 
-    async def refresh_account(self) -> bool:
-        if self.busy:
+    async def refresh_account(self, force: bool = False) -> bool:
+        if self.busy and not force:
             return bool(self.signed_in)
         res = await self.cli.run("info", timeout=30)
         old = self.signed_in
@@ -5688,8 +5732,8 @@ class OrbitApp(App[None]):
             self.main_screen.refresh_header()
         return changed
 
-    async def refresh_status(self, record: bool = False) -> bool:
-        if self.busy:
+    async def refresh_status(self, record: bool = False, force: bool = False) -> bool:
+        if self.busy and not force:
             return False
         res = await self.cli.run("status", timeout=30, record=record)
         if not res.ok:
