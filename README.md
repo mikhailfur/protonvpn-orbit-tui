@@ -209,9 +209,8 @@ Orbit does not reimplement VPN logic: all state changes, tunneling, configuratio
 
 ## Known limitations and roadmap
 
-Active work is tracked in [GitHub Issues](https://github.com/mikhailfur/protonvpn-orbit-tui/issues):
+Remaining work is tracked in [GitHub Issues](https://github.com/mikhailfur/protonvpn-orbit-tui/issues):
 
-- [#1 — fix refresh after a real `signin`](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/1);
 - [#2 — validate account flows without losing the current session](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/2);
 - [#3 — verify Secure Core / Tor / P2P on a real account](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/3);
 - [#4 — compact Settings/Account layout for 80×24](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/4);
@@ -219,6 +218,16 @@ Active work is tracked in [GitHub Issues](https://github.com/mikhailfur/protonvp
 - [#6 — automated smoke tests with a fake CLI](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/6).
 
 If you are already signed in and do not want to risk your session, do not use sign-out, and test account flows only on a separate test account.
+
+---
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The tests use a temporary fake CLI and never access the real account or credentials.
 
 ---
 
