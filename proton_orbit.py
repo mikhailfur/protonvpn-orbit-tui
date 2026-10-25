@@ -34,6 +34,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import time
 import zlib
 from collections import OrderedDict
@@ -2215,6 +2216,7 @@ def signin_outcome(
     was_signed_in: bool,
     previous_account: str,
     account_name: str,
+    error_detail: str = "",
 ) -> tuple[bool, str]:
     """Translate a finished interactive sign-in into a UI result.
 
@@ -2222,14 +2224,18 @@ def signin_outcome(
     considered so a failed attempt never reports success just because an
     older session was still present.
     """
+    detail = clean_output(error_detail)
+    detail = detail.splitlines()[0].strip() if detail else ""
+    if len(detail) > 160:
+        detail = detail[:157].rstrip() + "…"
     if returncode == 0 and signed_in:
         return True, "Signed in. Welcome back."
     if returncode != 0:
         if signed_in and was_signed_in and account_name == previous_account:
-            return (
-                False,
-                f"Sign-in failed (CLI exit code {returncode}); existing session unchanged.",
-            )
+            message = f"Sign-in failed (CLI exit code {returncode}); existing session unchanged."
+            return False, f"{detail} {message}".strip() if detail else message
+        if detail:
+            return False, f"Sign-in failed: {detail}"
         return (
             False,
             f"Sign-in failed (CLI exit code {returncode}). Check the CLI output above.",
@@ -4240,11 +4246,19 @@ class MainScreen(Screen):
         try:
             with self.app.suspend():
                 print(f"\n$ {' '.join(cmd)}\n", flush=True)
-                result = subprocess.run(cmd, check=False)
+                result = subprocess.run(
+                    cmd, check=False, stderr=subprocess.PIPE, text=True
+                )
+                error_detail = clean_output(result.stderr or "")
+                if error_detail:
+                    print(error_detail, file=sys.stderr, flush=True)
+            activity_output = f"interactive sign-in exited with code {result.returncode}"
+            if error_detail:
+                activity_output += f"\n{error_detail}"
             app.record_activity_event(
                 " ".join(cmd[1:]),
                 result.returncode == 0,
-                f"interactive sign-in exited with code {result.returncode}",
+                activity_output,
             )
             # Keep the operation marked busy so no other CLI action can start,
             # but force these refreshes past the busy guard: the interactive
@@ -4257,6 +4271,7 @@ class MainScreen(Screen):
                 was_signed_in,
                 previous_account,
                 app.account_name,
+                error_detail,
             )
             self.set_status(message, "ok" if success else "error")
             if success:

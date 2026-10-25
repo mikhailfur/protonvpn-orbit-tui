@@ -16,7 +16,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
-from contextlib import nullcontext, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -139,6 +139,18 @@ class SigninOutcomeTests(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("did not complete", message)
 
+    def test_failure_includes_cli_error_detail(self) -> None:
+        success, message = orbit.signin_outcome(
+            1,
+            False,
+            False,
+            "",
+            "",
+            "Error: Authentication failed. Please check your username and password.",
+        )
+        self.assertFalse(success)
+        self.assertIn("Authentication failed", message)
+
 
 class ForcedRefreshTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
@@ -194,13 +206,13 @@ class SigninInteractiveTests(unittest.IsolatedAsyncioTestCase):
         self.app.account_name = ""
 
         def fake_run(
-            cmd: list[str], check: bool = False
+            cmd: list[str], check: bool = False, **_kwargs: object
         ) -> orbit.subprocess.CompletedProcess:
             write_state(signed_in=True, account="new@example.com", connected=False)
             return orbit.subprocess.CompletedProcess(cmd, 0)
 
         with patch.object(orbit.subprocess, "run", side_effect=fake_run):
-            with redirect_stdout(io.StringIO()):
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 await orbit.MainScreen.signin_interactive(
                     self.screen, "new@example.com", False
                 )
@@ -217,13 +229,15 @@ class SigninInteractiveTests(unittest.IsolatedAsyncioTestCase):
         self.app.account_name = "existing@example.com"
 
         def fake_run(
-            cmd: list[str], check: bool = False
+            cmd: list[str], check: bool = False, **_kwargs: object
         ) -> orbit.subprocess.CompletedProcess:
             write_state(signed_in=True, account="existing@example.com", connected=False)
-            return orbit.subprocess.CompletedProcess(cmd, 1)
+            return orbit.subprocess.CompletedProcess(
+                cmd, 1, stderr="Error: Authentication failed."
+            )
 
         with patch.object(orbit.subprocess, "run", side_effect=fake_run):
-            with redirect_stdout(io.StringIO()):
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 await orbit.MainScreen.signin_interactive(
                     self.screen, "existing@example.com", False
                 )
