@@ -209,12 +209,14 @@ Orbit не реализует VPN-логику заново: все измене
 
 ## Известные ограничения и roadmap
 
-Актуальные задачи ведутся в [GitHub Issues](https://github.com/mikhailfur/protonvpn-orbit-tui/issues). В частности:
+Актуальные задачи ведутся в [GitHub Issues](https://github.com/mikhailfur/protonvpn-orbit-tui/issues):
 
-- экран входа требует дополнительной проверки после реального `signin`;
-- нужна проверка платных режимов Secure Core/Tor/P2P на реальном аккаунте;
-- на 80×24 Settings и Account требуют прокрутки;
-- автоматических UI-тестов пока нет.
+- [#1 — исправить refresh после реального `signin`](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/1);
+- [#2 — проверить account-flow без потери текущей сессии](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/2);
+- [#3 — проверить Secure Core / Tor / P2P на реальном аккаунте](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/3);
+- [#4 — компактная раскладка Settings/Account для 80×24](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/4);
+- [#5 — финальная полировка footer/sidebar и очистка](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/5);
+- [#6 — автоматические smoke-тесты с fake CLI](https://github.com/mikhailfur/protonvpn-orbit-tui/issues/6).
 
 Если вы уже авторизованы и не хотите рисковать сессией, не используйте sign-out и тестируйте account-flow только на отдельном тестовом аккаунте.
 
